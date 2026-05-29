@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type Request, type Response } from 'express';
 import http from 'http';
 import path from 'path';
 import { Server } from 'socket.io';
@@ -52,14 +52,14 @@ setupSocket(io);
 
 app.use('/api', leaderboardRoutes);
 
-app.get('/health', (_req, res) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok' });
 });
 
 if (isProduction) {
   const clientDist = path.join(__dirname, '../../client/dist');
   app.use(express.static(clientDist));
-  app.get('*', (_req, res) => {
+  app.get('*', (_req: Request, res: Response) => {
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }

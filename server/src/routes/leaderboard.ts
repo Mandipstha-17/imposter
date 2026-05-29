@@ -1,9 +1,9 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { PlayerStats } from '../models/PlayerStats';
 
 const router = Router();
 
-router.get('/leaderboard', async (req, res) => {
+router.get('/leaderboard', async (req: Request, res: Response) => {
   try {
     const topPlayers = await PlayerStats.find()
       .sort({ wins: -1, highestWinStreak: -1 })
