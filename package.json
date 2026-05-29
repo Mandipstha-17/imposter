@@ -1,0 +1,18 @@
+{
+  "name": "football-imposter-mern",
+  "version": "1.0.0",
+  "description": "Production-ready modern multiplayer web game called Football Imposter using the MERN stack.",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "npm run dev --prefix server",
+    "client": "npm run dev --prefix client",
+    "build": "npm run build --prefix server && npm run build --prefix client",
+    "start": "npm run start --prefix server"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
