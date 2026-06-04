@@ -131,6 +131,7 @@ export default function Home() {
                   maxLength={6}
                   autoComplete="off"
                   inputMode="text"
+                  autoCapitalize="characters"
                 />
               </motion.div>
             )}

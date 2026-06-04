@@ -27,7 +27,11 @@ export default function Reveal() {
   const votedOut = topIds.length === 1 ? room.players.find((p) => p.playerId === topIds[0]) : null;
   const crewmatesWon = votedOut?.playerId === imposter?.playerId;
 
+  const crewmate = room.players.find((p) => p.isPlaying && p.role === 'crewmate');
+  const realWord = crewmate?.footballer ?? '';
+
   const ranked = [...playingPlayers].sort(
+
     (a, b) => (voteCounts[b.playerId] || 0) - (voteCounts[a.playerId] || 0)
   );
 
@@ -58,8 +62,17 @@ export default function Reveal() {
           {crewmatesWon ? 'CREW WINS' : 'IMPOSTER WINS'}
         </p>
         <p className="text-xs text-gray-500 mt-2 font-semibold uppercase tracking-widest">
-          {crewmatesWon ? 'The imposter was found!' : 'The crew failed to identify the imposter'}
+          {crewmatesWon ? 'Crewmates Win! 🎉' : 'Imposter Wins! 😈'}
         </p>
+
+        <p className="text-xs text-gray-500 mt-2 font-semibold uppercase tracking-widest">
+          The Imposter was {imposter?.name}
+        </p>
+
+        <p className="text-xs text-gray-500 mt-2 font-semibold uppercase tracking-widest">
+          The real word was: {realWord}
+        </p>
+
       </motion.div>
 
       {/* Imposter reveal */}
@@ -80,6 +93,11 @@ export default function Reveal() {
           <span className="text-xs text-gray-500">Playing as</span>
           <span className="text-sm font-black text-red-300">{imposter?.footballer}</span>
         </div>
+
+        <p className="text-xs text-gray-500 mt-3 font-semibold uppercase tracking-widest">
+          The word was: {realWord}
+        </p>
+
       </motion.div>
 
       {/* Vote breakdown */}
@@ -162,7 +180,7 @@ export default function Reveal() {
                 className={`flex items-center gap-3 px-4 py-3 ${isImposterPlayer ? 'bg-red-500/5' : ''}`}
               >
                 <div
-                  className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0 ${
+                  className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-black shrink-0 ${
                     isImposterPlayer ? 'bg-red-500/20 text-red-400' : 'bg-white/8 text-black'
                   }`}
                 >
@@ -206,28 +224,41 @@ export default function Reveal() {
         <p className="text-xs text-gray-600 font-medium">Stats saved to leaderboard ✓</p>
       </div>
 
-      {/* Host bottom action bar */}
-      {isHost && (
-        <div
-          className="fixed bottom-0 left-0 right-0 p-20 z-40"
-        >
-          <div className="max-w-sm mx-auto grid grid-cols-2 gap-3 items-center">
-            <a
-              href="/leaderboard"
-              className="h-12 rounded-xl font-bold text-sm uppercase tracking-widest text-yellow-400 border border-yellow-500/30 bg-yellow-500/10 flex items-center justify-center transition-all active:scale-95"
-            >
-              🏆 Rankings
-            </a>
+      {/* Bottom Action Bar */}
+      <div
+        className="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3 z-40"
+        style={{
+          background: 'linear-gradient(to top, rgba(240, 242, 255, 0.9) 65%, rgba(240, 242, 255, 0))',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+        }}
+      >
+        <div className="max-w-sm mx-auto grid grid-cols-2 gap-3 items-center">
+          <a
+            href="/leaderboard"
+            className="h-12 rounded-xl font-bold text-sm uppercase tracking-widest text-yellow-400 border border-yellow-500/30 bg-yellow-500/10 flex items-center justify-center transition-all active:scale-95 cursor-pointer no-underline"
+          >
+            🏆 Rankings
+          </a>
+          {isHost ? (
             <motion.button
               whileTap={{ scale: 0.97 }}
               onClick={handleRestart}
-              className="h-12 rounded-xl font-black text-sm uppercase tracking-widest bg-neon text-black neon-glow transition-all"
+              className="h-12 rounded-xl font-black text-sm uppercase tracking-widest bg-neon text-black neon-glow transition-all cursor-pointer border-none"
             >
               ▶ Play Again
             </motion.button>
-          </div>
+          ) : (
+            <a
+              href="/lobby"
+              className="h-12 rounded-xl font-black text-sm uppercase tracking-widest bg-amber-400 text-black flex items-center justify-center transition-all active:scale-95 cursor-pointer no-underline"
+              style={{ boxShadow: '0 4px 16px rgba(245,158,11,0.3)' }}
+            >
+              ◀ Back to Lobby
+            </a>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

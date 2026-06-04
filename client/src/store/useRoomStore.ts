@@ -11,17 +11,32 @@ export interface Player {
   isPlaying: boolean;
   hasVoted: boolean;
   votedForId: string | null;
+  description?: string;
 }
 
 export interface RoomState {
   roomCode: string | null;
-  status: 'lobby' | 'discussion' | 'voting' | 'tie_breaker' | 'voting_complete' | 'revealed' | null;
+  status: 'lobby' | 'discussion' | 'voting' | 'tie_breaker' | 'voting_complete' | 'revealed' | 'round_summary' | null;
   players: Player[];
   hostId: string | null;
   revealImposter: boolean;
   votingStartedAt?: string;
   tiedPlayerIds: string[];
+  totalRounds?: number;
+  currentRound?: number;
+  votingDuration?: number;
+  descriptions?: { playerId: string; name: string; text: string }[];
+
+  // Crewmates' shared real word; imposter hides it during the game
+  realWord?: string;
+
+  // Per-round discussion entries (used by the grouped multi-round summary)
+  roundDescriptions?: {
+    roundNumber: number;
+    entries: { playerId: string; name: string; text: string }[];
+  }[];
 }
+
 
 interface StoreState {
   guestId: string;

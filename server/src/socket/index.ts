@@ -9,6 +9,84 @@ import path from 'path';
 const footballersPath = path.join(__dirname, '../data/footballers.json');
 const footballers: string[] = JSON.parse(fs.readFileSync(footballersPath, 'utf8'));
 
+function broadcastRoomUpdate(io: Server, room: any) {
+  room.players.forEach((p: any) => {
+    io.to(p.socketId).emit('roomUpdated', sanitizeRoom(room, p.playerId));
+  });
+}
+
+function sanitizeRoom(room: any, targetPlayerId: string) {
+  const roomObj = room.toObject ? room.toObject() : { ...room };
+
+  // During active game phases, hide each player's role/footballer from others
+  // BUT keep descriptions visible to everyone during discussion
+  if (['voting', 'tie_breaker', 'voting_complete'].includes(roomObj.status)) {
+    roomObj.players = roomObj.players.map((p: any) => {
+      if (p.playerId !== targetPlayerId) {
+        return { ...p, role: undefined, footballer: undefined, votedForId: undefined };
+      }
+      return p;
+    });
+  }
+
+  if (roomObj.status === 'discussion') {
+    // During discussion: hide role/footballer from others, BUT show description to everyone
+    roomObj.players = roomObj.players.map((p: any) => {
+      if (p.playerId !== targetPlayerId) {
+        return { ...p, role: undefined, footballer: undefined, votedForId: undefined };
+        // description is kept visible for all
+      }
+      return p;
+    });
+  }
+
+  return roomObj;
+}
+
+function assignRoles(room: any) {
+  const playingPlayers = room.players.filter((p: any) => p.isPlaying);
+  if (playingPlayers.length === 0) return;
+
+  const imposterIndex = Math.floor(Math.random() * playingPlayers.length);
+  const shuffled = [...footballers].sort(() => 0.5 - Math.random());
+  const crewmateFootballer = shuffled[0];
+
+  room.players.forEach((p: any) => {
+    p.votedForId = null;
+    p.hasVoted = false;
+    p.description = '';
+
+    if (!p.isPlaying) {
+      p.role = 'crewmate';
+      p.footballer = '';
+      return;
+    }
+
+    const playingIndex = playingPlayers.findIndex((pp: any) => pp.playerId === p.playerId);
+    if (playingIndex === imposterIndex) {
+      p.role = 'imposter';
+      p.footballer = ''; // Imposter gets NO word — only knows they are imposter
+    } else {
+      p.role = 'crewmate';
+      p.footballer = crewmateFootballer;
+    }
+  });
+
+  // Set turn order to the order of playing players
+  room.turnOrder = playingPlayers.map((p: any) => p.playerId);
+  room.currentTurnIndex = 0;
+}
+
+function nextRoundRoles(room: any) {
+  room.players.forEach((p: any) => {
+    p.votedForId = null;
+    p.hasVoted = false;
+    p.description = '';
+  });
+  // Reset turn to first player in the same turn order
+  room.currentTurnIndex = 0;
+}
+
 export function setupSocket(io: Server) {
   io.on('connection', (socket: Socket) => {
     console.log('Client connected:', socket.id);
@@ -22,17 +100,15 @@ export function setupSocket(io: Server) {
           roomCode,
           hostId: playerId,
           status: 'lobby',
+          totalRounds: 3,
+          currentRound: 1,
+          votingDuration: 120,
+          descriptions: [],
           players: [{
-            playerId,
-            guestId,
-            socketId: socket.id,
-            name,
-            isHost: true,
-            role: 'crewmate',
-            footballer: '',
-            isPlaying: true,
-            votedForId: null,
-            hasVoted: false
+            playerId, guestId, socketId: socket.id,
+            name, isHost: true, role: 'crewmate',
+            footballer: '', isPlaying: true,
+            votedForId: null, hasVoted: false, description: ''
           }]
         });
         await room.save();
@@ -50,35 +126,28 @@ export function setupSocket(io: Server) {
         if (!guestId) return typeof callback === 'function' && callback({ success: false, message: 'Missing guestId' });
         const room = await Room.findOne({ roomCode: roomCode.toUpperCase() });
         if (!room) return typeof callback === 'function' && callback({ success: false, message: 'Room not found' });
-        
+
         const existingPlayer = room.players.find(p => p.playerId === playerId);
         if (existingPlayer) {
           existingPlayer.socketId = socket.id;
           existingPlayer.name = name;
-          existingPlayer.guestId = guestId; // ensure latest guestId
+          existingPlayer.guestId = guestId;
         } else {
           if (room.status !== 'lobby') {
             return typeof callback === 'function' && callback({ success: false, message: 'Game already in progress' });
           }
           room.players.push({
-            playerId,
-            guestId,
-            socketId: socket.id,
-            name,
-            isHost: false,
-            role: 'crewmate',
-            footballer: '',
-            isPlaying: true,
-            votedForId: null,
-            hasVoted: false,
-            joinedAt: new Date()
-          });
+            playerId, guestId, socketId: socket.id,
+            name, isHost: false, role: 'crewmate',
+            footballer: '', isPlaying: true,
+            votedForId: null, hasVoted: false,
+            description: '', joinedAt: new Date()
+          } as any);
         }
 
         await room.save();
         socket.join(room.roomCode);
         if (typeof callback === 'function') callback({ success: true, roomCode: room.roomCode });
-        
         broadcastRoomUpdate(io, room);
       } catch (error) {
         if (typeof callback === 'function') callback({ success: false, message: 'Failed to join room' });
@@ -89,10 +158,10 @@ export function setupSocket(io: Server) {
     socket.on('leaveRoom', async ({ roomCode, playerId }, callback) => {
       try {
         const room = await Room.findOne({ roomCode });
-        if (!room) return typeof callback === 'function' && callback({ success: false, message: 'Room not found' });
-        
-        room.players = room.players.filter(p => p.playerId !== playerId);
-        
+        if (!room) return typeof callback === 'function' && callback({ success: false });
+
+        room.players = room.players.filter(p => p.playerId !== playerId) as any;
+
         if (room.players.length === 0) {
           await Room.deleteOne({ roomCode });
         } else {
@@ -101,11 +170,10 @@ export function setupSocket(io: Server) {
             room.players[0].isHost = true;
           }
           room.tiedPlayerIds = room.tiedPlayerIds.filter(id => id !== playerId);
-          
           await room.save();
           broadcastRoomUpdate(io, room);
         }
-        
+
         socket.leave(roomCode);
         if (typeof callback === 'function') callback({ success: true });
       } catch (error) {
@@ -118,7 +186,7 @@ export function setupSocket(io: Server) {
       try {
         const room = await Room.findOne({ roomCode });
         if (!room) return typeof callback === 'function' && callback({ success: false, message: 'Room not found' });
-        
+
         const existingPlayer = room.players.find(p => p.playerId === playerId);
         if (existingPlayer) {
           existingPlayer.socketId = socket.id;
@@ -153,43 +221,16 @@ export function setupSocket(io: Server) {
       }
     });
 
-    // START GAME
-    socket.on('startGame', async ({ roomCode, playerId }, callback) => {
+    // SET ROUNDS (host configures before starting)
+    socket.on('set_rounds', async ({ roomCode, playerId, totalRounds }, callback) => {
       try {
         const room = await Room.findOne({ roomCode });
-        if (!room || room.hostId !== playerId) return typeof callback === 'function' && callback({ success: false });
-        
-        const playingPlayers = room.players.filter(p => p.isPlaying);
-        if (playingPlayers.length < 1) return typeof callback === 'function' && callback({ success: false, message: 'Need at least 1 active player' });
-
-        const imposterIndex = Math.floor(Math.random() * playingPlayers.length);
-        const shuffled = [...footballers].sort(() => 0.5 - Math.random());
-        const crewmateFootballer = shuffled[0];
-        const imposterFootballer = shuffled[1];
-
-        room.players.forEach((p) => {
-          p.votedForId = null;
-          p.hasVoted = false;
-          if (!p.isPlaying) {
-            p.role = 'crewmate'; 
-            p.footballer = '';
-            return;
-          }
-          const playingIndex = playingPlayers.findIndex(pp => pp.playerId === p.playerId);
-          if (playingIndex === imposterIndex) {
-            p.role = 'imposter';
-            p.footballer = imposterFootballer;
-          } else {
-            p.role = 'crewmate';
-            p.footballer = crewmateFootballer;
-          }
-        });
-
-        room.status = 'discussion';
-        room.revealImposter = false;
-        room.tiedPlayerIds = [];
+        if (!room || room.hostId !== playerId || room.status !== 'lobby') {
+          return typeof callback === 'function' && callback({ success: false });
+        }
+        const rounds = Math.max(1, Math.min(10, parseInt(totalRounds) || 3));
+        room.totalRounds = rounds;
         await room.save();
-        
         broadcastRoomUpdate(io, room);
         if (typeof callback === 'function') callback({ success: true });
       } catch (error) {
@@ -197,16 +238,145 @@ export function setupSocket(io: Server) {
       }
     });
 
+    // START GAME
+    socket.on('startGame', async ({ roomCode, playerId }, callback) => {
+      try {
+        const room = await Room.findOne({ roomCode });
+        if (!room || room.hostId !== playerId) return typeof callback === 'function' && callback({ success: false });
+
+        const playingPlayers = room.players.filter(p => p.isPlaying);
+        if (playingPlayers.length < 1) return typeof callback === 'function' && callback({ success: false, message: 'Need at least 1 active player' });
+
+        room.currentRound = 1;
+        room.descriptions = [];
+        room.roundDescriptions = [];
+        assignRoles(room);
+
+        room.status = 'discussion';
+        room.revealImposter = false;
+        room.tiedPlayerIds = [];
+        await room.save();
+
+        broadcastRoomUpdate(io, room);
+        if (typeof callback === 'function') callback({ success: true });
+      } catch (error) {
+        if (typeof callback === 'function') callback({ success: false });
+      }
+    });
+
+    // SUBMIT DESCRIPTION — turn-by-turn, clues shown live
+    socket.on('submit_description', async ({ roomCode, playerId, text }, callback) => {
+      try {
+        const room = await Room.findOne({ roomCode });
+        if (!room || room.status !== 'discussion') {
+          return typeof callback === 'function' && callback({ success: false, message: 'Not in discussion phase' });
+        }
+        const player = room.players.find(p => p.playerId === playerId);
+        if (!player || !player.isPlaying) {
+          return typeof callback === 'function' && callback({ success: false, message: 'Player not found' });
+        }
+
+        // Enforce turn order: only the active player may submit
+        const turnOrder: string[] = room.turnOrder ?? [];
+        const currentTurnPlayerId = turnOrder[room.currentTurnIndex ?? 0];
+        if (currentTurnPlayerId && currentTurnPlayerId !== playerId) {
+          return typeof callback === 'function' && callback({ success: false, message: 'Not your turn' });
+        }
+
+        player.description = String(text || '').substring(0, 200);
+
+        // Advance to next turn
+        room.currentTurnIndex = (room.currentTurnIndex ?? 0) + 1;
+
+        await room.save();
+
+        // Broadcast live update so everyone sees the new clue immediately
+        broadcastRoomUpdate(io, room);
+
+        // Check if all playing players have taken their turn this round
+        const playingPlayers = room.players.filter(p => p.isPlaying);
+        const allSubmitted = room.currentTurnIndex >= turnOrder.length;
+
+        if (allSubmitted) {
+          // Save descriptions for this round
+          const roundEntries = playingPlayers.map(p => ({
+            playerId: p.playerId,
+            name: p.name,
+            text: p.description
+          }));
+
+          const existingRound = room.roundDescriptions.find(r => r.roundNumber === room.currentRound);
+          if (!existingRound) {
+            room.roundDescriptions.push({
+              roundNumber: room.currentRound,
+              entries: roundEntries
+            } as any);
+          }
+
+          if (room.currentRound < room.totalRounds) {
+            // Auto-advance to next round after a short pause
+            room.descriptions = roundEntries as any;
+            await room.save();
+            broadcastRoomUpdate(io, room);
+
+            setTimeout(async () => {
+              try {
+                const refreshedRoom = await Room.findOne({ roomCode });
+                if (!refreshedRoom || refreshedRoom.status !== 'discussion') return;
+
+                refreshedRoom.currentRound += 1;
+                nextRoundRoles(refreshedRoom);
+                await refreshedRoom.save();
+                broadcastRoomUpdate(io, refreshedRoom);
+              } catch (e) {
+                console.error(e);
+              }
+            }, 2000);
+          } else {
+            // All rounds done — save and let host start voting
+            room.descriptions = roundEntries as any;
+            await room.save();
+            broadcastRoomUpdate(io, room);
+          }
+        }
+
+        if (typeof callback === 'function') callback({ success: true });
+      } catch (error) {
+        if (typeof callback === 'function') callback({ success: false });
+      }
+    });
+
+
     // START VOTING
     socket.on('start_voting', async ({ roomCode, playerId }, callback) => {
       try {
         const room = await Room.findOne({ roomCode });
-        if (!room || room.hostId !== playerId || room.status !== 'discussion') return typeof callback === 'function' && callback({ success: false });
+        if (!room || room.hostId !== playerId || room.status !== 'discussion') {
+          return typeof callback === 'function' && callback({ success: false });
+        }
+
+        // Save final round descriptions if not already saved
+        const playingPlayers = room.players.filter(p => p.isPlaying);
+        const roundEntries = playingPlayers.map(p => ({
+          playerId: p.playerId,
+          name: p.name,
+          text: p.description || ''
+        }));
+
+        const existingRound = room.roundDescriptions.find(r => r.roundNumber === room.currentRound);
+        if (!existingRound) {
+          room.roundDescriptions.push({
+            roundNumber: room.currentRound,
+            entries: roundEntries
+          } as any);
+        }
+
+        room.descriptions = roundEntries as any;
 
         room.status = 'voting';
         room.votingStartedAt = new Date();
         await room.save();
-        
+
         broadcastRoomUpdate(io, room);
         if (typeof callback === 'function') callback({ success: true });
       } catch (error) {
@@ -262,7 +432,7 @@ export function setupSocket(io: Server) {
       }
     });
 
-    // REVEAL
+    // REVEAL IMPOSTER
     socket.on('revealImposter', async ({ roomCode, playerId }, callback) => {
       try {
         const room = await Room.findOne({ roomCode });
@@ -276,7 +446,7 @@ export function setupSocket(io: Server) {
         room.status = 'revealed';
         room.revealImposter = true;
         await room.save();
-        
+
         broadcastRoomUpdate(io, room);
         io.to(roomCode).emit('game_revealed');
         if (typeof callback === 'function') callback({ success: true });
@@ -285,7 +455,7 @@ export function setupSocket(io: Server) {
       }
     });
 
-    // RESTART
+    // RESTART / NEXT ROUND
     socket.on('restartGame', async ({ roomCode, playerId }, callback) => {
       try {
         const room = await Room.findOne({ roomCode });
@@ -295,14 +465,18 @@ export function setupSocket(io: Server) {
         room.revealImposter = false;
         room.votingStartedAt = undefined;
         room.tiedPlayerIds = [];
+        room.currentRound = 1;
+        room.descriptions = [];
+        room.roundDescriptions = [];
         room.players.forEach(p => {
           p.role = 'crewmate';
           p.footballer = '';
           p.hasVoted = false;
           p.votedForId = null;
+          p.description = '';
         });
         await room.save();
-        
+
         broadcastRoomUpdate(io, room);
         if (typeof callback === 'function') callback({ success: true });
       } catch (error) {
@@ -314,30 +488,4 @@ export function setupSocket(io: Server) {
       console.log('Client disconnected:', socket.id);
     });
   });
-}
-
-function broadcastRoomUpdate(io: Server, room: any) {
-  room.players.forEach((p: any) => {
-    io.to(p.socketId).emit('roomUpdated', sanitizeRoom(room, p.playerId));
-  });
-}
-
-function sanitizeRoom(room: any, targetPlayerId: string) {
-  const roomObj = room.toObject();
-  
-  if (['discussion', 'voting', 'tie_breaker', 'voting_complete'].includes(roomObj.status)) {
-    roomObj.players = roomObj.players.map((p: any) => {
-      if (p.playerId !== targetPlayerId) {
-        return {
-          ...p,
-          role: undefined,
-          footballer: undefined,
-          votedForId: undefined 
-        };
-      }
-      return p;
-    });
-  }
-  
-  return roomObj;
 }

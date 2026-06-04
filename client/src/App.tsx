@@ -18,8 +18,12 @@ function SocketHandler() {
     socket.on('roomUpdated', (d) => {
       setRoom(d);
       if (d.status === 'lobby') navigate('/lobby');
-      else if (['discussion','voting','tie_breaker','voting_complete'].includes(d.status)) navigate('/game');
-      else if (d.status === 'revealed') navigate('/reveal');
+      else if (['discussion','voting','tie_breaker','voting_complete','round_summary'].includes(d.status)) navigate('/game');
+      else if (d.status === 'revealed') {
+        if (!['/lobby', '/leaderboard'].includes(window.location.pathname)) {
+          navigate('/reveal');
+        }
+      }
     });
 
     const rc = sessionStorage.getItem('roomCode');
