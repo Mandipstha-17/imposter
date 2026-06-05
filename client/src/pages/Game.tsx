@@ -4,10 +4,13 @@ import { useRoomStore } from '../store/useRoomStore';
 import { socket } from '../socket';
 import toast from 'react-hot-toast';
 
-function RoleCard({ myPlayer }: { myPlayer: any }) {
+function RoleCard({ myPlayer, room }: { myPlayer: any, room: any }) {
   if (!myPlayer) return null;
 
   if (!myPlayer.isPlaying) {
+    const imposter = room?.players?.find((p: any) => p.role === 'imposter');
+    const crewmate = room?.players?.find((p: any) => p.role === 'crewmate' && p.footballer);
+
     return (
       <div className="card-elevated p-5 text-center" style={{ borderTop: '3px solid #0ea5e9' }}>
         <p className="section-label mb-1">Your Role</p>
@@ -15,6 +18,13 @@ function RoleCard({ myPlayer }: { myPlayer: any }) {
           SPECTATOR
         </p>
         <p className="section-label mt-2">You are moderating this match</p>
+        
+        {imposter && crewmate && (
+          <div className="mt-4 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.4)', border: '1px solid rgba(14,165,233,0.3)', textAlign: 'left' }}>
+            <p className="mb-1 text-sm"><span className="font-bold text-red-500">Imposter:</span> {imposter.name}</p>
+            <p className="text-sm"><span className="font-bold" style={{ color: 'var(--indigo)' }}>Secret Word:</span> {crewmate.footballer}</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -94,7 +104,7 @@ function DiscussionPhase({
 
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-32">
       {/* My turn input */}
       {myPlayer?.isPlaying && isMyTurn && !hasSubmittedMyClue && (
         <motion.div
@@ -324,7 +334,7 @@ function DiscussionPhase({
             WebkitBackdropFilter: 'blur(8px)',
           }}
         >
-          <div className="max-w-sm mx-auto">
+          <div className="max-w-md md:max-w-2xl mx-auto">
             <motion.button
               whileTap={{ scale: 0.97 }}
               animate={{ boxShadow: ['0 4px 18px rgba(245,158,11,0.3)', '0 4px 28px rgba(245,158,11,0.6)', '0 4px 18px rgba(245,158,11,0.3)'] }}
@@ -403,7 +413,7 @@ function RoundSummary({ room, isHost }: { room: any; isHost: boolean; playerId: 
             WebkitBackdropFilter: 'blur(8px)',
           }}
         >
-          <div className="max-w-sm mx-auto space-y-2">
+          <div className="max-w-md md:max-w-2xl mx-auto space-y-2">
             <p className="section-label text-center">Start Voting</p>
             <p className="text-xs" style={{ color: 'var(--text-muted)', textAlign: 'center' }}>
               When you’re ready, voting will begin for everyone.
@@ -585,7 +595,7 @@ function VotingPhase({ room, myPlayer, onVote, onReveal }: any) {
             WebkitBackdropFilter: 'blur(8px)',
           }}
         >
-          <div className="max-w-sm mx-auto">
+          <div className="max-w-md md:max-w-2xl mx-auto">
             <p className="section-label text-center mb-2">Host Controls</p>
             <motion.button
               whileTap={{ scale: 0.97 }}
@@ -634,7 +644,7 @@ function VotingComplete({ isHost, onReveal }: any) {
             WebkitBackdropFilter: 'blur(8px)',
           }}
         >
-          <div className="max-w-sm mx-auto space-y-2">
+          <div className="max-w-md md:max-w-2xl mx-auto space-y-2">
             <p className="section-label text-center">The moment everyone&apos;s been waiting for…</p>
             <motion.button
               whileTap={{ scale: 0.97 }}
@@ -707,14 +717,29 @@ export default function Game() {
   }
 
   return (
-    <div className="w-full max-w-sm mx-auto space-y-4">
+    <div className="w-full max-w-md md:max-w-2xl mx-auto space-y-4">
       {/* Round & Room Info Header */}
       <div className="flex items-center justify-between px-1 text-xs font-semibold animate-fade-in" style={{ color: 'var(--text-muted)' }}>
         <span>Room: <b style={{ color: 'var(--indigo)' }}>{room.roomCode}</b></span>
         <span>Round <b style={{ color: 'var(--indigo)' }}>{room.currentRound}</b> of <b style={{ color: 'var(--indigo)' }}>{room.totalRounds || 3}</b></span>
       </div>
 
-      <RoleCard myPlayer={myPlayer} />
+      {isHost && (
+        <div className="flex justify-end px-1 animate-fade-in">
+          <button
+            onClick={() => {
+              if (window.confirm('Are you sure you want to abort the current match and return everyone to the lobby?')) {
+                socket.emit('restartGame', { roomCode: room.roomCode, playerId });
+              }
+            }}
+            className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-red-500/10 text-red-500 border border-red-500/20 active:scale-95 transition-all cursor-pointer"
+          >
+            🛑 Abort Match
+          </button>
+        </div>
+      )}
+
+      <RoleCard myPlayer={myPlayer} room={room} />
 
       <AnimatePresence mode="wait">
         {room.status === 'discussion' && (
@@ -815,7 +840,7 @@ export default function Game() {
               WebkitBackdropFilter: 'blur(8px)',
             }}
           >
-            <div className="max-w-sm mx-auto">
+            <div className="max-w-md md:max-w-2xl mx-auto">
               {isHost ? (
                 <motion.button
                   whileTap={{ scale: 0.97 }}

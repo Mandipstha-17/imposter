@@ -50,7 +50,7 @@ export default function Home() {
   };
 
   return (
-    <div className="w-full max-w-sm mx-auto flex flex-col gap-7 pt-4 pb-12">
+    <div className="w-full max-w-md md:max-w-2xl mx-auto flex flex-col gap-7 pt-4 pb-12">
       {/* Hero */}
       <div className="text-center space-y-2">
         <motion.div

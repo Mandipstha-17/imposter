@@ -55,7 +55,7 @@ function Nav() {
 
   return (
     <nav className="nav-glass fixed top-0 left-0 right-0 z-50 h-16">
-      <div className="h-full max-w-lg mx-auto px-4 flex items-center justify-between">
+      <div className="h-full max-w-md md:max-w-2xl mx-auto px-4 flex items-center justify-between">
         <a href="/" className="flex items-center gap-2 select-none no-underline">
           <span className="text-xl">⚽</span>
           <span className="font-display text-xl" style={{ color: 'var(--indigo)', letterSpacing: '0.12em' }}>

@@ -18,6 +18,12 @@ function broadcastRoomUpdate(io: Server, room: any) {
 function sanitizeRoom(room: any, targetPlayerId: string) {
   const roomObj = room.toObject ? room.toObject() : { ...room };
 
+  const targetPlayer = roomObj.players?.find((p: any) => p.playerId === targetPlayerId);
+  if (targetPlayer && !targetPlayer.isPlaying) {
+    // Spectators see everything
+    return roomObj;
+  }
+
   // During active game phases, hide each player's role/footballer from others
   // BUT keep descriptions visible to everyone during discussion
   if (['voting', 'tie_breaker', 'voting_complete'].includes(roomObj.status)) {
@@ -72,8 +78,13 @@ function assignRoles(room: any) {
     }
   });
 
-  // Set turn order to the order of playing players
-  room.turnOrder = playingPlayers.map((p: any) => p.playerId);
+  // Set turn order randomly
+  const playerIds = playingPlayers.map((p: any) => p.playerId);
+  for (let i = playerIds.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [playerIds[i], playerIds[j]] = [playerIds[j], playerIds[i]];
+  }
+  room.turnOrder = playerIds;
   room.currentTurnIndex = 0;
 }
 

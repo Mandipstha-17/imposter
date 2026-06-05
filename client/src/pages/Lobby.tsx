@@ -41,7 +41,7 @@ export default function Lobby() {
   };
 
   return (
-    <div className="w-full max-w-sm mx-auto flex flex-col gap-4 pb-32">
+    <div className="w-full max-w-md md:max-w-2xl mx-auto flex flex-col gap-4 pb-32">
 
       {/* Room code */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="card-elevated p-5">
@@ -174,7 +174,7 @@ export default function Lobby() {
             backdropFilter: 'blur(8px)',
             WebkitBackdropFilter: 'blur(8px)',
           }}>
-          <div className="max-w-sm mx-auto">
+          <div className="max-w-md md:max-w-2xl mx-auto">
             <motion.button whileTap={{ scale: 0.97 }} onClick={handleStart}
               className="w-full h-14 rounded-2xl font-black text-base uppercase tracking-widest text-white animate-pulse-indigo"
               style={{ background: 'var(--indigo)', boxShadow: '0 4px 18px rgba(99,102,241,0.4)', border: 'none' }}>

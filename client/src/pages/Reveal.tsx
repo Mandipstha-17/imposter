@@ -38,7 +38,7 @@ export default function Reveal() {
   const handleRestart = () => socket.emit('restartGame', { roomCode: room.roomCode, playerId });
 
   return (
-    <div className="w-full max-w-sm mx-auto space-y-4 pb-64">
+    <div className="w-full max-w-md md:max-w-2xl mx-auto space-y-4 pb-64">
       {/* Winner banner */}
       <motion.div
         initial={{ y: -30, opacity: 0 }}
@@ -224,6 +224,31 @@ export default function Reveal() {
         <p className="text-xs text-gray-600 font-medium">Stats saved to leaderboard ✓</p>
       </div>
 
+      {/* Clues Breakdown */}
+      {room.roundDescriptions && room.roundDescriptions.length > 0 && (
+        <div className="glass-panel rounded-2xl overflow-hidden mb-6">
+          <div className="px-4 py-3 border-b border-white/8">
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Discussion Clues</p>
+          </div>
+          <div className="divide-y divide-white/5">
+            {room.roundDescriptions.map((round: any) => (
+              <div key={round.roundNumber} className="px-4 py-3 space-y-2">
+                <p className="text-[10px] font-bold uppercase text-neon">Round {round.roundNumber}</p>
+                {round.entries.map((entry: any, i: number) => {
+                  const isImposterPlayer = entry.playerId === imposter?.playerId;
+                  return (
+                    <div key={i} className={`text-xs p-2 rounded-lg ${isImposterPlayer ? 'bg-red-500/10 border border-red-500/20' : 'bg-white/5'}`}>
+                      <span className={`font-bold ${isImposterPlayer ? 'text-red-400' : 'text-gray-300'}`}>{entry.name}: </span>
+                      <span className="text-gray-400">{entry.text || '(No clue given)'}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Bottom Action Bar */}
       <div
         className="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3 z-40"
@@ -233,7 +258,7 @@ export default function Reveal() {
           WebkitBackdropFilter: 'blur(8px)',
         }}
       >
-        <div className="max-w-sm mx-auto grid grid-cols-2 gap-3 items-center">
+        <div className="max-w-md md:max-w-2xl mx-auto grid grid-cols-2 gap-3 items-center">
           <a
             href="/leaderboard"
             className="h-12 rounded-xl font-bold text-sm uppercase tracking-widest text-yellow-400 border border-yellow-500/30 bg-yellow-500/10 flex items-center justify-center transition-all active:scale-95 cursor-pointer no-underline"

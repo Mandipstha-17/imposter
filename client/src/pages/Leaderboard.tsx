@@ -50,7 +50,7 @@ export default function Leaderboard() {
   }
 
   return (
-    <div className="w-full max-w-sm mx-auto space-y-5 pb-10">
+    <div className="w-full max-w-md md:max-w-2xl mx-auto space-y-5 pb-10">
       {/* Header */}
       <div className="text-center space-y-1 pt-2">
         <p className="text-4xl">🏆</p>
